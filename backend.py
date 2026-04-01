@@ -37,9 +37,13 @@ async def analyze(req: Req):
     # Download
     try:
         import yt_dlp
+        ydl_opts = {"outtmpl": out, "quiet": True, "merge_output_format": "mp4"}
+        cookies_file = Path(__file__).parent / "cookies.txt"
+        if cookies_file.exists():
+            ydl_opts["cookiefile"] = str(cookies_file)
         loop = asyncio.get_event_loop()
         def _dl():
-            with yt_dlp.YoutubeDL({"outtmpl": out, "quiet": True, "merge_output_format": "mp4"}) as ydl:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([req.url])
         await loop.run_in_executor(None, _dl)
     except Exception as e:
