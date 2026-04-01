@@ -1,7 +1,7 @@
 import { useState } from "react";
 import "./App.css";
 
-const API = "http://localhost:8000";
+const DEFAULT_API = "http://localhost:8000";
 
 function SignalChart({ signal }) {
   if (!signal?.length) return null;
@@ -102,6 +102,14 @@ export default function App() {
   const [phase, setPhase] = useState("idle");
   const [result, setResult] = useState(null);
   const [err, setErr] = useState("");
+  const [apiUrl, setApiUrl] = useState(() => localStorage.getItem("api_url") || DEFAULT_API);
+  const [showApiInput, setShowApiInput] = useState(false);
+
+  function saveApiUrl(val) {
+    const trimmed = val.trim().replace(/\/$/, "");
+    localStorage.setItem("api_url", trimmed);
+    setApiUrl(trimmed);
+  }
 
   async function run() {
     const trimmed = url.trim();
@@ -110,7 +118,7 @@ export default function App() {
     setResult(null);
     setErr("");
     try {
-      const res = await fetch(`${API}/analyze`, {
+      const res = await fetch(`${apiUrl}/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: trimmed }),
@@ -145,6 +153,20 @@ export default function App() {
           Paste a video URL → model returns{" "}
           <code>[a, b]</code>
         </p>
+        <div className="api-config">
+          <span className="api-label">Backend: </span>
+          {showApiInput ? (
+            <input
+              className="api-in"
+              defaultValue={apiUrl}
+              onBlur={e => { saveApiUrl(e.target.value); setShowApiInput(false); }}
+              onKeyDown={e => { if (e.key === "Enter") { saveApiUrl(e.target.value); setShowApiInput(false); } }}
+              autoFocus
+            />
+          ) : (
+            <span className="api-url" onClick={() => setShowApiInput(true)}>{apiUrl}</span>
+          )}
+        </div>
       </header>
 
       <div className="input-wrap">

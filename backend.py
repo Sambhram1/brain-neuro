@@ -15,8 +15,9 @@ CACHE_DIR = str(Path(__file__).parent / "cache")
 def get_model():
     global _model
     if _model is None:
-        import pathlib
-        pathlib.PosixPath = pathlib.WindowsPath
+        import pathlib, os
+        if os.name == "nt":
+            pathlib.PosixPath = pathlib.WindowsPath
         from tribev2 import TribeModel
         _model = TribeModel.from_pretrained(MODEL_DIR, cache_folder=CACHE_DIR, device="cpu")
     return _model

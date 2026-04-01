@@ -31,6 +31,17 @@
 }
 
 .sub { font-size: 0.85rem; color: #4a5568; }
+
+.api-config { margin-top: 0.75rem; font-size: 0.72rem; color: #3d4f66; font-family: var(--mono); }
+.api-label { color: #3d4f66; }
+.api-url { color: #4a90b8; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.api-url:hover { color: var(--cyan); }
+.api-in {
+  background: #0d1117; border: 1px solid #1e2d45; color: #c8cfd8;
+  font-family: var(--mono); font-size: 0.72rem; padding: 2px 8px;
+  border-radius: 3px; width: 340px; outline: none;
+}
+.api-in:focus { border-color: var(--cyan); }
 .sub code {
   font-family: var(--mono);
   font-size: 0.8rem;
