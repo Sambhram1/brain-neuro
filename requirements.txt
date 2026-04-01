@@ -1,0 +1,5 @@
+streamlit
+numpy
+# TRIBE v2 — install separately:
+# git clone https://github.com/facebookresearch/tribev2
+# pip install -e ./tribev2

@@ -1,0 +1,7 @@
+node_modules/
+__pycache__/
+*.pyc
+cache/
+model_weights/best.ckpt
+model_weights/.cache/
+*.log
