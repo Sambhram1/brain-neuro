@@ -1,0 +1,24 @@
+{
+  "name": "tribe-analyzer",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Sambhram1/brain-neuro.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Sambhram1/brain-neuro/issues"
+  },
+  "homepage": "https://github.com/Sambhram1/brain-neuro#readme",
+  "dependencies": {
+    "ab-downloader": "^1.0.2"
+  }
+}

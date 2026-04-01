@@ -34,25 +34,22 @@ async def analyze(req: Req):
     tmp_dir = tempfile.mkdtemp()
     out = os.path.join(tmp_dir, "video.%(ext)s")
 
-    # Download
+    # Download via ab-downloader (Node.js)
+    import subprocess
+    script = Path(__file__).parent / "downloader.js"
     try:
-        import yt_dlp
-        ydl_opts = {"outtmpl": out, "quiet": True, "merge_output_format": "mp4"}
-        cookies_file = Path(__file__).parent / "cookies.txt"
-        if cookies_file.exists():
-            ydl_opts["cookiefile"] = str(cookies_file)
         loop = asyncio.get_event_loop()
         def _dl():
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([req.url])
-        await loop.run_in_executor(None, _dl)
+            r = subprocess.run(
+                ["node", str(script), req.url, tmp_dir],
+                capture_output=True, text=True
+            )
+            if r.returncode != 0:
+                raise RuntimeError(r.stderr.strip())
+            return r.stdout.strip()
+        video_path = await loop.run_in_executor(None, _dl)
     except Exception as e:
         raise HTTPException(400, f"Download failed: {e}")
-
-    files = os.listdir(tmp_dir)
-    if not files:
-        raise HTTPException(400, "Download produced no file")
-    video_path = os.path.join(tmp_dir, files[0])
 
     # Run model
     try:
