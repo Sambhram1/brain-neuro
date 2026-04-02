@@ -1,22 +1,5 @@
 import sys, tempfile, os, asyncio, shutil, subprocess
 from pathlib import Path
-
-# Add tribev2 repo to path (covers editable installs that don't survive subprocess)
-for _p in ['/content/tribev2', str(Path(__file__).parent.parent / 'tribev2')]:
-    if os.path.isdir(_p) and _p not in sys.path:
-        sys.path.insert(0, _p)
-
-# Self-heal: install tribev2 from GitHub if still not importable
-try:
-    import tribev2 as _t2_check
-except ModuleNotFoundError:
-    print("tribev2 not found — installing from GitHub...")
-    subprocess.run(
-        [sys.executable, "-m", "pip", "install", "-q", "--no-deps",
-         "git+https://github.com/facebookresearch/tribev2.git"],
-        check=True
-    )
-    print("tribev2 installed.")
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -36,7 +19,7 @@ def get_model():
         import pathlib
         if os.name == "nt":
             pathlib.PosixPath = pathlib.WindowsPath
-        from tribev2 import TribeModel
+        from tribev2.demo_utils import TribeModel
         _model = TribeModel.from_pretrained("facebook/tribev2", cache_folder=CACHE_DIR)
     return _model
 
