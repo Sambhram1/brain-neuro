@@ -1,71 +1,60 @@
 #!/usr/bin/env node
 // Usage: node downloader.js <url> <output_dir>
 // Prints the downloaded file path to stdout, or writes ERROR: ... to stderr and exits 1.
+// Requires yt-dlp to be installed (already installed by colab_backend.ipynb).
 
-const { igdl, youtube, ttdl, aio } = require('ab-downloader');
-const https = require('https');
-const http = require('http');
+const { spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-async function getDirectUrl(url) {
-  if (url.includes('instagram.com')) {
-    const res = await igdl(url);
-    if (Array.isArray(res) && res[0]?.url) return res[0].url;
-    throw new Error(res.message || 'Instagram: no download URL returned');
-  }
-  if (url.includes('youtube.com') || url.includes('youtu.be')) {
-    const res = await youtube(url);
-    if (res.mp4) return res.mp4;
-    throw new Error(res.message || 'YouTube: no mp4 URL returned');
-  }
-  if (url.includes('tiktok.com')) {
-    const res = await ttdl(url);
-    if (res.video) return res.video;
-    throw new Error(res.message || 'TikTok: no video URL returned');
-  }
-  // fallback: aio handles Twitter, Pinterest, Facebook, etc.
-  const res = await aio(url);
-  if (res.url) return res.url;
-  throw new Error(res.message || 'Could not resolve download URL');
-}
-
-function downloadFile(url, dest, redirects = 0) {
-  if (redirects > 5) return Promise.reject(new Error('Too many redirects'));
-  return new Promise((resolve, reject) => {
-    const proto = url.startsWith('https') ? https : http;
-    const file = fs.createWriteStream(dest);
-    proto.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, res => {
-      if (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307) {
-        file.destroy();
-        fs.unlink(dest, () => {});
-        return downloadFile(res.headers.location, dest, redirects + 1).then(resolve).catch(reject);
-      }
-      if (res.statusCode !== 200) {
-        file.destroy();
-        return reject(new Error(`HTTP ${res.statusCode}`));
-      }
-      res.pipe(file);
-      file.on('finish', () => file.close(() => resolve(dest)));
-    }).on('error', err => { fs.unlink(dest, () => {}); reject(err); });
-  });
-}
-
-async function main() {
+function main() {
   const [,, url, outputDir] = process.argv;
   if (!url || !outputDir) {
     process.stderr.write('Usage: node downloader.js <url> <output_dir>\n');
     process.exit(1);
   }
-  try {
-    const directUrl = await getDirectUrl(url);
-    const dest = path.join(outputDir, 'video.mp4');
-    await downloadFile(directUrl, dest);
-    process.stdout.write(dest + '\n');
-  } catch (err) {
-    process.stderr.write('ERROR: ' + err.message + '\n');
+
+  const outTemplate = path.join(outputDir, 'video.%(ext)s');
+
+  const args = [
+    '--no-playlist',
+    '--format', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+    '--merge-output-format', 'mp4',
+    '--output', outTemplate,
+    '--quiet',
+    '--no-warnings',
+  ];
+
+  // Use cookies.txt if present (enables Instagram/TikTok private/login-gated content)
+  const cookiesPath = path.join(__dirname, 'cookies.txt');
+  if (fs.existsSync(cookiesPath)) {
+    args.push('--cookies', cookiesPath);
+  }
+
+  args.push(url);
+
+  const result = spawnSync('yt-dlp', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+
+  if (result.error) {
+    process.stderr.write('ERROR: yt-dlp not found — install it with: pip install yt-dlp\n');
     process.exit(1);
   }
+
+  if (result.status !== 0) {
+    const errMsg = (result.stderr || result.stdout || Buffer.alloc(0)).toString().trim();
+    process.stderr.write('ERROR: ' + (errMsg || `yt-dlp exited with code ${result.status}`) + '\n');
+    process.exit(1);
+  }
+
+  // Find the downloaded mp4 file in outputDir
+  const files = fs.readdirSync(outputDir).filter(f => f.endsWith('.mp4'));
+  if (files.length === 0) {
+    process.stderr.write('ERROR: yt-dlp ran but no .mp4 file found in output dir\n');
+    process.exit(1);
+  }
+
+  const videoPath = path.join(outputDir, files[0]);
+  process.stdout.write(videoPath + '\n');
 }
 
 main();

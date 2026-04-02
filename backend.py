@@ -34,7 +34,7 @@ async def analyze(req: Req):
     tmp_dir = tempfile.mkdtemp()
     out = os.path.join(tmp_dir, "video.%(ext)s")
 
-    # Download via ab-downloader (Node.js)
+    # Download via yt-dlp (invoked through Node.js downloader.js)
     import subprocess
     script = Path(__file__).parent / "downloader.js"
     try:
