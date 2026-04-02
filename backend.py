@@ -2,6 +2,7 @@ import tempfile, os, asyncio, shutil
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import numpy as np
 
@@ -99,6 +100,31 @@ def _format_result(preds, segments):
             "data": [s if isinstance(s, dict) else str(s) for s in segments],
         }
     }
+
+
+@app.get("/fetch-video")
+async def fetch_video(url: str):
+    """Download a video URL via yt-dlp and stream it back to the frontend."""
+    tmp_dir = tempfile.mkdtemp()
+    try:
+        loop = asyncio.get_event_loop()
+        video_path = await loop.run_in_executor(None, _download_video, url, tmp_dir)
+    except Exception as e:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        raise HTTPException(400, f"Download failed: {e}")
+
+    def stream_and_cleanup():
+        try:
+            with open(video_path, "rb") as f:
+                yield from f
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    return StreamingResponse(
+        stream_and_cleanup(),
+        media_type="video/mp4",
+        headers={"Content-Disposition": "attachment; filename=video.mp4"},
+    )
 
 
 @app.post("/analyze-upload")

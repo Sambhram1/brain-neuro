@@ -56,7 +56,7 @@ function SampleTable({ sample }) {
 }
 
 const STEPS_URL = [
-  { t: 0,   label: "Downloading video via yt-dlp" },
+  { t: 0,   label: "Downloading video to browser via yt-dlp" },
   { t: 8,   label: "Extracting audio & stripping chapters" },
   { t: 20,  label: "Transcribing speech with WhisperX (CPU — slow)" },
   { t: 120, label: "Extracting video features with V-JEPA2" },
@@ -128,18 +128,23 @@ export default function App() {
     setResult(null);
     setErr("");
     try {
-      let res;
-      if (mode === "file") {
-        const form = new FormData();
-        form.append("file", file);
-        res = await fetch(`${apiUrl}/analyze-upload`, { method: "POST", body: form });
-      } else {
-        res = await fetch(`${apiUrl}/analyze`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: url.trim() }),
-        });
+      let videoFile = file;
+
+      if (mode === "url") {
+        // Step 1: backend downloads via yt-dlp and streams the video back
+        const dlRes = await fetch(`${apiUrl}/fetch-video?url=${encodeURIComponent(url.trim())}`);
+        if (!dlRes.ok) {
+          const j = await dlRes.json().catch(() => ({}));
+          throw new Error(j.detail || `Download failed: HTTP ${dlRes.status}`);
+        }
+        const blob = await dlRes.blob();
+        videoFile = new File([blob], "video.mp4", { type: "video/mp4" });
       }
+
+      // Step 2: upload video to backend for model processing
+      const form = new FormData();
+      form.append("file", videoFile);
+      const res = await fetch(`${apiUrl}/analyze-upload`, { method: "POST", body: form });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
         throw new Error(j.detail || `HTTP ${res.status}`);
