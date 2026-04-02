@@ -13,12 +13,34 @@ _model = None
 MODEL_DIR = str(Path(__file__).parent / "model_weights")
 CACHE_DIR = str(Path(__file__).parent / "cache")
 
+def _patch_whisperx():
+    """Force whisperx to use int8 on CPU, float16 only on CUDA."""
+    import torch
+    try:
+        import whisperx.asr as _asr
+        _orig = _asr.load_model
+        def _patched(*args, **kwargs):
+            if not torch.cuda.is_available():
+                kwargs["compute_type"] = "int8"
+            elif kwargs.get("compute_type", "float16") == "float16":
+                # Verify the GPU actually supports float16
+                try:
+                    torch.zeros(1, dtype=torch.float16, device="cuda")
+                except Exception:
+                    kwargs["compute_type"] = "int8"
+            return _orig(*args, **kwargs)
+        _asr.load_model = _patched
+    except Exception:
+        pass
+
+
 def get_model():
     global _model
     if _model is None:
         import pathlib
         if os.name == "nt":
             pathlib.PosixPath = pathlib.WindowsPath
+        _patch_whisperx()
         from tribev2.demo_utils import TribeModel
         _model = TribeModel.from_pretrained("facebook/tribev2", cache_folder=CACHE_DIR)
     return _model
