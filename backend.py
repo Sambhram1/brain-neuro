@@ -13,25 +13,44 @@ _model = None
 MODEL_DIR = str(Path(__file__).parent / "model_weights")
 CACHE_DIR = str(Path(__file__).parent / "cache")
 
-def _patch_whisperx():
-    """Force whisperx to use int8 on CPU, float16 only on CUDA."""
-    import torch
-    try:
-        import whisperx.asr as _asr
-        _orig = _asr.load_model
-        def _patched(*args, **kwargs):
-            if not torch.cuda.is_available():
-                kwargs["compute_type"] = "int8"
-            elif kwargs.get("compute_type", "float16") == "float16":
-                # Verify the GPU actually supports float16
-                try:
-                    torch.zeros(1, dtype=torch.float16, device="cuda")
-                except Exception:
-                    kwargs["compute_type"] = "int8"
-            return _orig(*args, **kwargs)
-        _asr.load_model = _patched
-    except Exception:
-        pass
+def _patch_whisperx_subprocess():
+    """
+    tribev2 calls whisperx as a CLI subprocess with --compute_type float16.
+    float16 is only supported on CUDA. Intercept all subprocess calls and
+    replace float16 with int8 when no GPU is available.
+    """
+    import subprocess as _sp, torch
+    compute_type = "float16" if torch.cuda.is_available() else "int8"
+    if compute_type == "float16":
+        return  # GPU present — no patch needed
+
+    def _fix(cmd):
+        if not isinstance(cmd, (list, tuple)):
+            return cmd
+        if not any("whisperx" in str(a) for a in cmd[:3]):
+            return cmd
+        out, i = [], 0
+        while i < len(cmd):
+            if str(cmd[i]) == "--compute_type":
+                i += 2          # drop flag + old value
+            else:
+                out.append(cmd[i])
+                i += 1
+        out += ["--compute_type", "int8"]
+        return out
+
+    _orig_run   = _sp.run
+    _orig_popen = _sp.Popen
+
+    def _run(cmd, *a, **kw):   return _orig_run(_fix(cmd), *a, **kw)
+    def _popen(cmd, *a, **kw): return _orig_popen(_fix(cmd), *a, **kw)
+
+    _sp.run   = _run
+    _sp.Popen = _popen
+
+
+# Apply patch at import time so it's active before any model call
+_patch_whisperx_subprocess()
 
 
 def get_model():
@@ -40,7 +59,6 @@ def get_model():
         import pathlib
         if os.name == "nt":
             pathlib.PosixPath = pathlib.WindowsPath
-        _patch_whisperx()
         from tribev2.demo_utils import TribeModel
         _model = TribeModel.from_pretrained("facebook/tribev2", cache_folder=CACHE_DIR)
     return _model
