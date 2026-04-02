@@ -29,26 +29,38 @@ class Req(BaseModel):
 def health():
     return {"status": "ok"}
 
+def _download_video(url: str, tmp_dir: str) -> str:
+    import subprocess
+    out_tmpl = os.path.join(tmp_dir, "video.%(ext)s")
+    args = [
+        "yt-dlp",
+        "--no-playlist",
+        "--format", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+        "--merge-output-format", "mp4",
+        "--output", out_tmpl,
+        "--quiet", "--no-warnings",
+    ]
+    cookies = Path(__file__).parent / "cookies.txt"
+    if cookies.exists():
+        args += ["--cookies", str(cookies)]
+    args.append(url)
+    r = subprocess.run(args, capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError(r.stderr.strip() or f"yt-dlp exited {r.returncode}")
+    mp4s = [f for f in os.listdir(tmp_dir) if f.endswith(".mp4")]
+    if not mp4s:
+        raise RuntimeError("yt-dlp ran but no .mp4 found")
+    return os.path.join(tmp_dir, mp4s[0])
+
+
 @app.post("/analyze")
 async def analyze(req: Req):
     tmp_dir = tempfile.mkdtemp()
-    out = os.path.join(tmp_dir, "video.%(ext)s")
-
-    # Download via yt-dlp (invoked through Node.js downloader.js)
-    import subprocess
-    script = Path(__file__).parent / "downloader.js"
     try:
         loop = asyncio.get_event_loop()
-        def _dl():
-            r = subprocess.run(
-                ["node", str(script), req.url, tmp_dir],
-                capture_output=True, text=True
-            )
-            if r.returncode != 0:
-                raise RuntimeError(r.stderr.strip())
-            return r.stdout.strip()
-        video_path = await loop.run_in_executor(None, _dl)
+        video_path = await loop.run_in_executor(None, _download_video, req.url, tmp_dir)
     except Exception as e:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
         raise HTTPException(400, f"Download failed: {e}")
 
     # Run model
