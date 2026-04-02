@@ -1,5 +1,10 @@
-import tempfile, os, asyncio, shutil
+import sys, tempfile, os, asyncio, shutil
 from pathlib import Path
+
+# Ensure tribev2 repo is importable (editable install may not survive uvicorn subprocess)
+for _p in ['/content/tribev2', str(Path(__file__).parent.parent / 'tribev2')]:
+    if os.path.isdir(_p) and _p not in sys.path:
+        sys.path.insert(0, _p)
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
