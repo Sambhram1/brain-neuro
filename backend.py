@@ -13,14 +13,36 @@ _model = None
 MODEL_DIR = str(Path(__file__).parent / "model_weights")
 CACHE_DIR = str(Path(__file__).parent / "cache")
 
+def _find_model_class():
+    """Auto-discover the model class inside tribev2 (handles any class name)."""
+    import tribev2, inspect, pkgutil, importlib
+
+    # Check top-level exports first
+    for _, obj in inspect.getmembers(tribev2, inspect.isclass):
+        if hasattr(obj, 'from_pretrained'):
+            return obj
+
+    # Walk all submodules
+    for _, modname, _ in pkgutil.walk_packages(tribev2.__path__, prefix='tribev2.'):
+        try:
+            mod = importlib.import_module(modname)
+            for _, obj in inspect.getmembers(mod, inspect.isclass):
+                if hasattr(obj, 'from_pretrained'):
+                    return obj
+        except Exception:
+            pass
+
+    raise ImportError("No class with from_pretrained() found in tribev2 — check package install")
+
+
 def get_model():
     global _model
     if _model is None:
-        import pathlib, os
+        import pathlib
         if os.name == "nt":
             pathlib.PosixPath = pathlib.WindowsPath
-        from tribev2 import TribeModel
-        _model = TribeModel.from_pretrained(MODEL_DIR, cache_folder=CACHE_DIR, device="cpu")
+        ModelClass = _find_model_class()
+        _model = ModelClass.from_pretrained(MODEL_DIR, cache_folder=CACHE_DIR, device="cpu")
     return _model
 
 class Req(BaseModel):
