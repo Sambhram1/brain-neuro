@@ -1,6 +1,6 @@
-import tempfile, os, asyncio
+import tempfile, os, asyncio, shutil
 from pathlib import Path
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import numpy as np
@@ -53,17 +53,25 @@ async def analyze(req: Req):
 
     # Run model
     try:
-        model = get_model()
-        df = model.get_events_dataframe(video_path=video_path)
-        preds, segments = model.predict(events=df)
+        loop = asyncio.get_event_loop()
+        preds, segments = await loop.run_in_executor(None, _run_model, video_path)
     except Exception as e:
-        import traceback, shutil
+        import traceback
         traceback.print_exc()
         shutil.rmtree(tmp_dir, ignore_errors=True)
         raise HTTPException(500, f"Model error: {e}")
 
-    import shutil; shutil.rmtree(tmp_dir, ignore_errors=True)
+    shutil.rmtree(tmp_dir, ignore_errors=True)
+    return _format_result(preds, segments)
 
+
+def _run_model(video_path: str):
+    model = get_model()
+    df = model.get_events_dataframe(video_path=video_path)
+    return model.predict(events=df)
+
+
+def _format_result(preds, segments):
     n_t, n_v = preds.shape
     return {
         "a": {
@@ -79,3 +87,26 @@ async def analyze(req: Req):
             "data": [s if isinstance(s, dict) else str(s) for s in segments],
         }
     }
+
+
+@app.post("/analyze-upload")
+async def analyze_upload(file: UploadFile = File(...)):
+    tmp_dir = tempfile.mkdtemp()
+    video_path = os.path.join(tmp_dir, "video.mp4")
+    try:
+        with open(video_path, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+    finally:
+        file.file.close()
+
+    try:
+        loop = asyncio.get_event_loop()
+        preds, segments = await loop.run_in_executor(None, _run_model, video_path)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        raise HTTPException(500, f"Model error: {e}")
+
+    shutil.rmtree(tmp_dir, ignore_errors=True)
+    return _format_result(preds, segments)

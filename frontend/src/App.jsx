@@ -1,7 +1,7 @@
 import { useState } from "react";
 import "./App.css";
 
-const DEFAULT_API = "http://localhost:8000";
+const DEFAULT_API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 function SignalChart({ signal }) {
   if (!signal?.length) return null;
@@ -55,7 +55,7 @@ function SampleTable({ sample }) {
   );
 }
 
-const STEPS = [
+const STEPS_URL = [
   { t: 0,   label: "Downloading video via yt-dlp" },
   { t: 8,   label: "Extracting audio & stripping chapters" },
   { t: 20,  label: "Transcribing speech with WhisperX (CPU — slow)" },
@@ -63,13 +63,21 @@ const STEPS = [
   { t: 240, label: "Predicting fMRI brain responses" },
 ];
 
-function LoadingSteps() {
+const STEPS_FILE = [
+  { t: 0,   label: "Uploading video to backend" },
+  { t: 5,   label: "Extracting audio & stripping chapters" },
+  { t: 20,  label: "Transcribing speech with WhisperX (CPU — slow)" },
+  { t: 120, label: "Extracting video features with V-JEPA2" },
+  { t: 240, label: "Predicting fMRI brain responses" },
+];
+
+function LoadingSteps({ steps }) {
   const [elapsed, setElapsed] = useState(0);
   useState(() => {
     const t = setInterval(() => setElapsed(e => e + 1), 1000);
     return () => clearInterval(t);
   });
-  const active = [...STEPS].reverse().find(s => elapsed >= s.t) || STEPS[0];
+  const active = [...steps].reverse().find(s => elapsed >= s.t) || steps[0];
   const mins = Math.floor(elapsed / 60);
   const secs = elapsed % 60;
   return (
@@ -99,6 +107,8 @@ function Stat({ label, value }) {
 
 export default function App() {
   const [url, setUrl] = useState("");
+  const [mode, setMode] = useState("url"); // "url" | "file"
+  const [file, setFile] = useState(null);
   const [phase, setPhase] = useState("idle");
   const [result, setResult] = useState(null);
   const [err, setErr] = useState("");
@@ -112,17 +122,24 @@ export default function App() {
   }
 
   async function run() {
-    const trimmed = url.trim();
-    if (!trimmed) return;
+    if (mode === "url" && !url.trim()) return;
+    if (mode === "file" && !file) return;
     setPhase("loading");
     setResult(null);
     setErr("");
     try {
-      const res = await fetch(`${apiUrl}/analyze`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: trimmed }),
-      });
+      let res;
+      if (mode === "file") {
+        const form = new FormData();
+        form.append("file", file);
+        res = await fetch(`${apiUrl}/analyze-upload`, { method: "POST", body: form });
+      } else {
+        res = await fetch(`${apiUrl}/analyze`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: url.trim() }),
+        });
+      }
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
         throw new Error(j.detail || `HTTP ${res.status}`);
@@ -169,23 +186,44 @@ export default function App() {
         </div>
       </header>
 
+      <div className="mode-tabs">
+        <button className={`mode-tab${mode === "url" ? " active" : ""}`} onClick={() => setMode("url")}>
+          URL
+        </button>
+        <button className={`mode-tab${mode === "file" ? " active" : ""}`} onClick={() => setMode("file")}>
+          Upload file
+        </button>
+      </div>
+
       <div className="input-wrap">
-        <input
-          className="url-in"
-          type="url"
-          placeholder="https://example.com/video.mp4"
-          value={url}
-          onChange={e => setUrl(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && run()}
-          spellCheck={false}
-          autoComplete="off"
-        />
+        {mode === "url" ? (
+          <input
+            className="url-in"
+            type="url"
+            placeholder="https://youtube.com/shorts/... or Instagram/TikTok URL"
+            value={url}
+            onChange={e => setUrl(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && run()}
+            spellCheck={false}
+            autoComplete="off"
+          />
+        ) : (
+          <label className="file-label">
+            <input
+              type="file"
+              accept="video/*,.mp4,.mov,.avi,.mkv,.webm"
+              className="file-in"
+              onChange={e => setFile(e.target.files[0] || null)}
+            />
+            <span className="file-name">{file ? file.name : "Choose a video file…"}</span>
+          </label>
+        )}
         <button className="run-btn" onClick={run} disabled={phase === "loading"}>
           {phase === "loading" ? <span className="spin" /> : "▶ Run"}
         </button>
       </div>
 
-      {phase === "loading" && <LoadingSteps />}
+      {phase === "loading" && <LoadingSteps steps={mode === "file" ? STEPS_FILE : STEPS_URL} />}
 
       {phase === "error" && (
         <div className="err-box">✗ {err}</div>

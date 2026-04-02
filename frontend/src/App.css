@@ -52,6 +52,52 @@
   border-radius: 3px;
 }
 
+/* ── Mode tabs ── */
+.mode-tabs {
+  display: flex;
+  gap: 0.5rem;
+  max-width: 720px;
+  margin: 0 auto 0.75rem;
+}
+.mode-tab {
+  padding: 0.35rem 1rem;
+  border: 1px solid #1a2333;
+  background: transparent;
+  color: #4a6080;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  transition: all 0.15s;
+}
+.mode-tab.active {
+  border-color: var(--cyan);
+  color: var(--cyan);
+  background: color-mix(in srgb, var(--cyan) 8%, transparent);
+}
+
+/* ── File input ── */
+.file-label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid #1a2333;
+  border-radius: 8px;
+  padding: 0 1rem;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.file-label:hover { border-color: color-mix(in srgb, var(--cyan) 40%, transparent); }
+.file-in { display: none; }
+.file-name {
+  color: #4a6080;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ── Input ── */
 .input-wrap {
   display: flex;
