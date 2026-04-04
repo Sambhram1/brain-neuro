@@ -1,7 +1,9 @@
 import { useState } from "react";
 import "./App.css";
 
-const DEFAULT_API = import.meta.env.VITE_API_URL || "http://localhost:8000";
+// When served from the backend (same-origin), use "" (relative paths).
+// When served from Vercel/elsewhere, user can click the Backend URL to configure it.
+const DEFAULT_API = import.meta.env.VITE_API_URL || "";
 
 function SignalChart({ signal }) {
   if (!signal?.length) return null;
@@ -128,6 +130,17 @@ export default function App() {
     setResult(null);
     setErr("");
     try {
+      // Pre-flight: verify backend is reachable
+      try {
+        const hc = await fetch(`${apiUrl}/health`, { signal: AbortSignal.timeout(10000) });
+        if (!hc.ok) throw new Error();
+      } catch {
+        throw new Error(
+          `Cannot reach backend at ${apiUrl} — is the Colab notebook still running? ` +
+          `Check that Cell 7 is active and the tunnel URL is correct.`
+        );
+      }
+
       let videoFile = file;
 
       if (mode === "url") {
@@ -152,7 +165,7 @@ export default function App() {
       setResult(await res.json());
       setPhase("done");
     } catch (e) {
-      setErr(e.message);
+      setErr(e.message || "Network error — check backend URL and Colab notebook");
       setPhase("error");
     }
   }

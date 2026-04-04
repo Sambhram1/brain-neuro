@@ -2,7 +2,8 @@ import sys, tempfile, os, asyncio, shutil, subprocess
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import numpy as np
 
@@ -20,9 +21,10 @@ def _patch_whisperx_subprocess():
     replace float16 with int8 when no GPU is available.
     """
     import subprocess as _sp, torch
+    # float16 only works on CUDA GPUs; MPS and CPU need int8
     compute_type = "float16" if torch.cuda.is_available() else "int8"
     if compute_type == "float16":
-        return  # GPU present — no patch needed
+        return  # CUDA GPU present — no patch needed
 
     def _fix(cmd):
         if not isinstance(cmd, (list, tuple)):
@@ -129,13 +131,20 @@ def _format_result(preds, segments):
     return {
         "a": {
             "label": "preds",
+            "description": f"Predicted fMRI activity — {n_t} TRs × {n_v:,} vertices",
             "shape": [n_t, n_v],
+            "timesteps": n_t,
+            "vertices": n_v,
+            "mean": float(preds.mean()),
+            "min": float(preds.min()),
+            "max": float(preds.max()),
+            "peak_abs": float(np.abs(preds).max()),
             "signal": preds.mean(axis=1).tolist(),
             "sample": preds[:5, :8].tolist(),
-            "stats": {"mean": float(preds.mean()), "min": float(preds.min()), "max": float(preds.max())}
         },
         "b": {
             "label": "segments",
+            "description": f"{len(segments)} event segments extracted from video",
             "count": len(segments),
             "data": [s if isinstance(s, dict) else str(s) for s in segments],
         }
@@ -188,3 +197,17 @@ async def analyze_upload(file: UploadFile = File(...)):
 
     shutil.rmtree(tmp_dir, ignore_errors=True)
     return _format_result(preds, segments)
+
+
+# ── Serve frontend from /static, with index.html as fallback ────────
+_STATIC = Path(__file__).parent / "static"
+if _STATIC.is_dir():
+    app.mount("/assets", StaticFiles(directory=str(_STATIC / "assets")), name="assets")
+
+    @app.get("/{path:path}")
+    async def serve_frontend(path: str):
+        """Serve frontend files; fall back to index.html for SPA routing."""
+        file = _STATIC / path
+        if file.is_file():
+            return FileResponse(str(file))
+        return FileResponse(str(_STATIC / "index.html"))
