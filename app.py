@@ -304,7 +304,18 @@ _check_llama_access()
 @st.cache_resource(show_spinner=False)
 def load_model():
     from tribev2 import TribeModel
-    return TribeModel.from_pretrained("facebook/tribev2", cache_folder="./cache")
+    model = TribeModel.from_pretrained("facebook/tribev2", cache_folder="./cache")
+    # Force ALL extractors to CPU (HF Spaces free tier has no GPU)
+    for attr in ("text_feature", "audio_feature", "video_feature", "image_feature"):
+        ext = getattr(model.data, attr, None)
+        if ext is None:
+            continue
+        if hasattr(ext, "device"):
+            ext.device = "cpu"
+        # Nested image extractor inside video/image feature
+        if hasattr(ext, "image") and hasattr(ext.image, "device"):
+            ext.image.device = "cpu"
+    return model
 
 # ── Upload ───────────────────────────────────────────────────────────────
 uploaded = st.file_uploader(
