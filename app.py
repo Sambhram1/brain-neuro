@@ -26,6 +26,30 @@ subprocess.run(
     check=False,
 )
 
+# ── Monkey-patch: force half-precision model loading to fit in 16GB ──
+import torch
+from transformers import AutoModel as _AM, AutoTokenizer as _AT
+
+_orig_model_from = _AM.from_pretrained
+_orig_tok_from = _AT.from_pretrained
+
+def _model_from_patched(pretrained, *a, **kw):
+    if "torch_dtype" not in kw:
+        kw["torch_dtype"] = torch.float32  # keep float32 for CPU but use low_cpu_mem_usage
+    kw.setdefault("low_cpu_mem_usage", True)
+    return _orig_model_from(pretrained, *a, **kw)
+
+def _tok_from_patched(pretrained, *a, **kw):
+    try:
+        return _orig_tok_from(pretrained, *a, **kw)
+    except Exception:
+        # Retry without additional_chat_templates (transformers compat)
+        kw["use_fast"] = False
+        return _orig_tok_from(pretrained, *a, **kw)
+
+_AM.from_pretrained = _model_from_patched
+_AT.from_pretrained = _tok_from_patched
+
 # ── Patch whisperx subprocess: bypass uvx, force int8 on CPU ─────────
 def _patch_whisperx_subprocess():
     import subprocess as _sp, torch
