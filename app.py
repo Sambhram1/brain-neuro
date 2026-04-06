@@ -257,6 +257,25 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+# ── Pre-check: verify LLaMA 3.2 access before loading full model ────────
+def _check_llama_access():
+    """Fail fast with a clear message if LLaMA 3.2 is not accessible."""
+    try:
+        from huggingface_hub import model_info
+        model_info("meta-llama/Llama-3.2-3B")
+    except Exception as e:
+        err = str(e)
+        if "401" in err or "403" in err or "gated" in err.lower():
+            st.error(
+                "**LLaMA 3.2 access denied.** Two things needed:\n\n"
+                "1. Accept the license at "
+                "[meta-llama/Llama-3.2-3B](https://huggingface.co/meta-llama/Llama-3.2-3B)\n"
+                "2. Add your HF token as a Space secret named `HF_TOKEN` in Settings"
+            )
+            st.stop()
+        # Other errors (network etc.) — let it proceed and fail later
+_check_llama_access()
+
 # ── Model loader ─────────────────────────────────────────────────────────
 @st.cache_resource(show_spinner=False)
 def load_model():
@@ -286,11 +305,17 @@ if uploaded:
         with st.spinner("Loading model weights…"):
             model = load_model()
 
-        with st.spinner("Extracting multimodal events from video…"):
-            df = model.get_events_dataframe(video_path=video_path)
+        try:
+            with st.spinner("Extracting multimodal events from video…"):
+                df = model.get_events_dataframe(video_path=video_path)
 
-        with st.spinner("Predicting fMRI brain responses…"):
-            preds, segments = model.predict(events=df)
+            with st.spinner("Predicting fMRI brain responses…"):
+                preds, segments = model.predict(events=df)
+        except Exception as e:
+            os.unlink(video_path)
+            import traceback
+            st.error(f"**Model error:** {e}\n\n```\n{traceback.format_exc()}\n```")
+            st.stop()
 
         os.unlink(video_path)
 
