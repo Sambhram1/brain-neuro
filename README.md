@@ -5,7 +5,7 @@ colorFrom: indigo
 colorTo: blue
 sdk: streamlit
 sdk_version: "1.45.1"
-python_version: "3.10"
+python_version: "3.11"
 app_file: app.py
 pinned: false
 license: cc-by-nc-4.0
