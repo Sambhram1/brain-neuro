@@ -5,6 +5,9 @@ import numpy as np
 import json
 import time
 
+# ── HF Spaces: disable hf_transfer (not available in uvx whisperx env) ─
+os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", "0")
+
 # ── HF Spaces: auto-login with HF_TOKEN secret ───────────────────────
 _hf_token = os.environ.get("HF_TOKEN")
 if _hf_token:
@@ -13,6 +16,35 @@ if _hf_token:
         huggingface_hub.login(token=_hf_token, add_to_git_credential=False)
     except Exception:
         pass
+
+
+# ── Patch whisperx subprocess: force int8 on CPU ─────────────────────
+def _patch_whisperx_subprocess():
+    import subprocess as _sp, torch
+    if torch.cuda.is_available():
+        return
+    def _fix(cmd):
+        if not isinstance(cmd, (list, tuple)):
+            return cmd
+        if not any("whisperx" in str(a) for a in cmd[:3]):
+            return cmd
+        out, i = [], 0
+        while i < len(cmd):
+            if str(cmd[i]) == "--compute_type":
+                i += 2
+            else:
+                out.append(cmd[i])
+                i += 1
+        out += ["--compute_type", "int8"]
+        return out
+    _orig_run = _sp.run
+    _orig_popen = _sp.Popen
+    def _run(cmd, *a, **kw): return _orig_run(_fix(cmd), *a, **kw)
+    def _popen(cmd, *a, **kw): return _orig_popen(_fix(cmd), *a, **kw)
+    _sp.run = _run
+    _sp.Popen = _popen
+
+_patch_whisperx_subprocess()
 
 st.set_page_config(
     page_title="TRIBE v2 — Neural Analyzer",

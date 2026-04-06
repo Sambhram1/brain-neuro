@@ -1,9 +1,10 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch
-torchvision
 torchaudio
+torchvision
 tribev2 @ git+https://github.com/facebookresearch/tribev2.git
 streamlit
 numpy
 huggingface_hub
+hf_transfer
 uv
