@@ -3,6 +3,8 @@ torch
 torchaudio
 torchvision
 tribev2 @ git+https://github.com/facebookresearch/tribev2.git
+whisperx @ git+https://github.com/m-bain/whisperX.git
+faster-whisper
 streamlit
 numpy
 huggingface_hub

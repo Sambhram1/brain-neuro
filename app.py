@@ -18,29 +18,56 @@ if _hf_token:
         pass
 
 
-# ── Patch whisperx subprocess: force int8 on CPU ─────────────────────
+# ── Patch whisperx subprocess: bypass uvx, force int8 on CPU ─────────
 def _patch_whisperx_subprocess():
-    import subprocess as _sp, torch
-    if torch.cuda.is_available():
-        return
+    import subprocess as _sp, sys, torch
+    compute_type = "float16" if torch.cuda.is_available() else "int8"
+
     def _fix(cmd):
         if not isinstance(cmd, (list, tuple)):
             return cmd
-        if not any("whisperx" in str(a) for a in cmd[:3]):
+        cmd = list(cmd)
+        # Replace "uvx whisperx ..." with "python -m whisperx ..."
+        # so it uses the pip-installed whisperx, not uvx's broken sandbox
+        if len(cmd) >= 2 and ("uvx" in str(cmd[0])) and ("whisperx" in str(cmd[1])):
+            cmd = [sys.executable, "-m", "whisperx"] + cmd[2:]
+        if not any("whisperx" in str(a) for a in cmd[:4]):
             return cmd
-        out, i = [], 0
-        while i < len(cmd):
-            if str(cmd[i]) == "--compute_type":
-                i += 2
-            else:
-                out.append(cmd[i])
-                i += 1
-        out += ["--compute_type", "int8"]
-        return out
+        # Force int8 compute on CPU (float16 is CUDA-only)
+        if compute_type != "float16":
+            out, i = [], 0
+            while i < len(cmd):
+                if str(cmd[i]) == "--compute_type":
+                    i += 2
+                else:
+                    out.append(cmd[i])
+                    i += 1
+            out += ["--compute_type", "int8"]
+            cmd = out
+        return cmd
+
+    def _fix_env(kw):
+        """Ensure HF_HUB_ENABLE_HF_TRANSFER=0 reaches the subprocess."""
+        env = kw.get("env") or os.environ.copy()
+        env["HF_HUB_ENABLE_HF_TRANSFER"] = "0"
+        kw["env"] = env
+        return kw
+
     _orig_run = _sp.run
     _orig_popen = _sp.Popen
-    def _run(cmd, *a, **kw): return _orig_run(_fix(cmd), *a, **kw)
-    def _popen(cmd, *a, **kw): return _orig_popen(_fix(cmd), *a, **kw)
+
+    def _run(cmd, *a, **kw):
+        fixed = _fix(cmd)
+        if isinstance(cmd, (list, tuple)) and any("whisperx" in str(x) for x in cmd[:4]):
+            _fix_env(kw)
+        return _orig_run(fixed, *a, **kw)
+
+    def _popen(cmd, *a, **kw):
+        fixed = _fix(cmd)
+        if isinstance(cmd, (list, tuple)) and any("whisperx" in str(x) for x in cmd[:4]):
+            _fix_env(kw)
+        return _orig_popen(fixed, *a, **kw)
+
     _sp.run = _run
     _sp.Popen = _popen
 
