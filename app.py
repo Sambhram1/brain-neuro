@@ -5,8 +5,8 @@ import numpy as np
 import json
 import time
 
-# ── HF Spaces: disable hf_transfer (not available in uvx whisperx env) ─
-os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", "0")
+# ── HF Spaces: disable hf_transfer everywhere ────────────────────────
+os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"
 
 # ── HF Spaces: auto-login with HF_TOKEN secret ───────────────────────
 _hf_token = os.environ.get("HF_TOKEN")
@@ -17,10 +17,18 @@ if _hf_token:
     except Exception:
         pass
 
+# ── Install whisperx + hf_transfer at startup (too large for build) ──
+import subprocess, sys
+subprocess.run(
+    [sys.executable, "-m", "pip", "install", "-q",
+     "whisperx @ git+https://github.com/m-bain/whisperX.git",
+     "faster-whisper", "hf_transfer"],
+    check=False,
+)
 
 # ── Patch whisperx subprocess: bypass uvx, force int8 on CPU ─────────
 def _patch_whisperx_subprocess():
-    import subprocess as _sp, sys, torch
+    import subprocess as _sp, torch
     compute_type = "float16" if torch.cuda.is_available() else "int8"
 
     def _fix(cmd):
@@ -47,7 +55,6 @@ def _patch_whisperx_subprocess():
         return cmd
 
     def _fix_env(kw):
-        """Ensure HF_HUB_ENABLE_HF_TRANSFER=0 reaches the subprocess."""
         env = kw.get("env") or os.environ.copy()
         env["HF_HUB_ENABLE_HF_TRANSFER"] = "0"
         kw["env"] = env
