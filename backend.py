@@ -1,4 +1,4 @@
-import sys, tempfile, os, asyncio, shutil, subprocess
+import sys, tempfile, os, asyncio, shutil, subprocess, gc
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,7 +12,16 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 _model = None
 MODEL_DIR = str(Path(__file__).parent / "model_weights")
-CACHE_DIR = str(Path(__file__).parent / "cache")
+CACHE_DIR = os.environ.get("HF_HOME", str(Path(__file__).parent / "cache"))
+
+# ── HF Spaces: login with HF_TOKEN secret if available ─────────────
+_hf_token = os.environ.get("HF_TOKEN")
+if _hf_token:
+    try:
+        import huggingface_hub
+        huggingface_hub.login(token=_hf_token, add_to_git_credential=False)
+    except Exception:
+        pass
 
 def _patch_whisperx_subprocess():
     """
@@ -123,7 +132,9 @@ async def analyze(req: Req):
 def _run_model(video_path: str):
     model = get_model()
     df = model.get_events_dataframe(video_path=video_path)
-    return model.predict(events=df)
+    result = model.predict(events=df)
+    gc.collect()  # free intermediate tensors on memory-constrained envs
+    return result
 
 
 def _format_result(preds, segments):

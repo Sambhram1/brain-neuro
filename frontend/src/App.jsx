@@ -3,6 +3,7 @@ import "./App.css";
 
 // When served from the backend (same-origin), use "" (relative paths).
 // When served from Vercel/elsewhere, user can click the Backend URL to configure it.
+// For HF Spaces: set VITE_API_URL=https://<your-username>-<space-name>.hf.space
 const DEFAULT_API = import.meta.env.VITE_API_URL || "";
 
 function SignalChart({ signal }) {
