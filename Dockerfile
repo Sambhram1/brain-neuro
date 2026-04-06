@@ -2,17 +2,23 @@ FROM python:3.10-slim
 
 # System deps: ffmpeg, git, build tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg git build-essential curl \
+    ffmpeg git build-essential curl libsndfile1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user (HF Spaces requirement)
 RUN useradd -m -u 1000 user
 WORKDIR /home/user/app
 
-# Install Python deps
+# Install CPU-only PyTorch first (saves ~2GB vs default CUDA build)
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir \
-    "tribev2[plotting] @ git+https://github.com/facebookresearch/tribev2.git" \
+    torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+
+# Install tribev2 and remaining deps in separate layers for better caching
+RUN pip install --no-cache-dir \
+    "tribev2 @ git+https://github.com/facebookresearch/tribev2.git"
+
+RUN pip install --no-cache-dir \
     fastapi \
     "uvicorn[standard]" \
     yt-dlp \
