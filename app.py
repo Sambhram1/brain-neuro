@@ -5,6 +5,15 @@ import numpy as np
 import json
 import time
 
+# ── HF Spaces: auto-login with HF_TOKEN secret ───────────────────────
+_hf_token = os.environ.get("HF_TOKEN")
+if _hf_token:
+    try:
+        import huggingface_hub
+        huggingface_hub.login(token=_hf_token, add_to_git_credential=False)
+    except Exception:
+        pass
+
 st.set_page_config(
     page_title="TRIBE v2 — Neural Analyzer",
     layout="wide",

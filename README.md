@@ -3,8 +3,9 @@ title: Brain Neuro
 emoji: 🧠
 colorFrom: indigo
 colorTo: blue
-sdk: docker
-app_port: 7860
+sdk: streamlit
+sdk_version: "1.45.1"
+app_file: app.py
 pinned: false
 license: cc-by-nc-4.0
 short_description: facebook tribev2

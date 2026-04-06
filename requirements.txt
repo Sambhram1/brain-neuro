@@ -1,5 +1,9 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+torchvision
+torchaudio
+tribev2 @ git+https://github.com/facebookresearch/tribev2.git
 streamlit
 numpy
-# TRIBE v2 — install separately:
-# git clone https://github.com/facebookresearch/tribev2
-# pip install -e ./tribev2
+huggingface_hub
+uv
