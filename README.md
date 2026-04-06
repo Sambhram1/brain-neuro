@@ -1,5 +1,5 @@
 ---
-title: TRIBE v2 Neural Response Analyzer
+title: Brain Neuro
 emoji: 🧠
 colorFrom: indigo
 colorTo: cyan
@@ -7,6 +7,7 @@ sdk: docker
 app_port: 7860
 pinned: false
 license: cc-by-nc-4.0
+short_description: facebook tribev2
 ---
 
 # TRIBE v2 — Neural Response Analyzer
