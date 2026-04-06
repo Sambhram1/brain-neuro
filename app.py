@@ -337,18 +337,34 @@ if uploaded:
             tmp.write(uploaded.getvalue())
             video_path = tmp.name
 
-        with st.spinner("Loading model weights…"):
-            model = load_model()
+        import psutil, gc
+
+        status = st.status("Running TRIBE v2 pipeline…", expanded=True)
+
+        def _mem():
+            gb = psutil.Process().memory_info().rss / 1e9
+            return f"{gb:.1f} GB"
 
         try:
-            with st.spinner("Extracting multimodal events from video…"):
-                df = model.get_events_dataframe(video_path=video_path)
+            status.write(f"**Step 1/4** — Loading model config… (RAM: {_mem()})")
+            model = load_model()
+            gc.collect()
 
-            with st.spinner("Predicting fMRI brain responses…"):
-                preds, segments = model.predict(events=df)
+            status.write(f"**Step 2/4** — Extracting audio & transcribing with WhisperX (CPU — this is slow, ~5-10 min)… (RAM: {_mem()})")
+            df = model.get_events_dataframe(video_path=video_path)
+            gc.collect()
+
+            status.write(f"**Step 3/4** — Extracting text/video/audio features with LLaMA + V-JEPA2 + Wav2Vec-BERT (CPU — ~10-20 min)… (RAM: {_mem()})")
+            status.write("Each extractor loads sequentially and is freed after use to save memory.")
+            preds, segments = model.predict(events=df)
+            gc.collect()
+
+            status.write(f"**Step 4/4** — Done! (RAM: {_mem()})")
+            status.update(label="Analysis complete", state="complete", expanded=False)
         except Exception as e:
             os.unlink(video_path)
             import traceback
+            status.update(label="Analysis failed", state="error")
             st.error(f"**Model error:** {e}\n\n```\n{traceback.format_exc()}\n```")
             st.stop()
 
