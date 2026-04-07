@@ -15,13 +15,16 @@ WORKDIR /app
 # Install CPU-only PyTorch (smaller image, faster build)
 RUN pip install --no-cache-dir torch torchaudio torchvision --index-url https://download.pytorch.org/whl/cpu
 
-# Install tribev2 + backend dependencies
+# Install tribev2 first (pins torch <2.7)
 RUN pip install --no-cache-dir \
     "tribev2[plotting] @ git+https://github.com/facebookresearch/tribev2.git" \
     "transformers<4.47" \
     numpy huggingface_hub psutil uv \
     fastapi "uvicorn[standard]" python-multipart yt-dlp \
-    "whisperx @ git+https://github.com/m-bain/whisperX.git" faster-whisper
+    faster-whisper
+
+# Install whisperx without deps (its torch~=2.8 conflicts with tribev2's torch<2.7)
+RUN pip install --no-cache-dir --no-deps "whisperx @ git+https://github.com/m-bain/whisperX.git"
 
 # Copy backend code and model config only (no frontend)
 COPY backend.py .
