@@ -67,11 +67,21 @@ _patch_whisperx_subprocess()
 def get_model():
     global _model
     if _model is None:
-        import pathlib
+        import pathlib, torch
         if os.name == "nt":
             pathlib.PosixPath = pathlib.WindowsPath
         from tribev2.demo_utils import TribeModel
         _model = TribeModel.from_pretrained("facebook/tribev2", cache_folder=CACHE_DIR)
+        # Force ALL extractors to CPU when no CUDA GPU is available
+        if not torch.cuda.is_available():
+            for attr in ("text_feature", "audio_feature", "video_feature", "image_feature"):
+                ext = getattr(_model.data, attr, None)
+                if ext is None:
+                    continue
+                if hasattr(ext, "device"):
+                    ext.device = "cpu"
+                if hasattr(ext, "image") and hasattr(ext.image, "device"):
+                    ext.image.device = "cpu"
     return _model
 
 class Req(BaseModel):
