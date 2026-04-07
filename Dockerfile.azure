@@ -1,0 +1,41 @@
+# ── Backend-only Dockerfile for Azure GPU VM ──
+# Uses NVIDIA CUDA base for GPU acceleration (fast inference)
+FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV HF_HOME=/app/cache
+
+# System dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.11 python3.11-venv python3.11-dev python3-pip \
+    ffmpeg libsndfile1-dev git curl \
+    && ln -sf /usr/bin/python3.11 /usr/bin/python3 \
+    && ln -sf /usr/bin/python3.11 /usr/bin/python \
+    && python3 -m ensurepip --upgrade \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install PyTorch with CUDA support (this is what makes it fast)
+RUN pip install --no-cache-dir torch torchaudio torchvision --index-url https://download.pytorch.org/whl/cu121
+
+# Install tribev2 + backend dependencies
+RUN pip install --no-cache-dir \
+    "tribev2[plotting] @ git+https://github.com/facebookresearch/tribev2.git" \
+    "transformers<4.47" \
+    numpy huggingface_hub psutil uv \
+    fastapi "uvicorn[standard]" python-multipart yt-dlp \
+    "whisperx @ git+https://github.com/m-bain/whisperX.git" faster-whisper
+
+# Copy backend code and model config only (no frontend)
+COPY backend.py .
+COPY model_weights/ ./model_weights/
+
+# Pre-create cache directory
+RUN mkdir -p /app/cache
+
+EXPOSE 8000
+
+# Use 4 workers for better throughput; adjust based on VM size
+CMD ["uvicorn", "backend:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

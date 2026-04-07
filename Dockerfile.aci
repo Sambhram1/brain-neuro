@@ -1,0 +1,35 @@
+# ── Backend-only Dockerfile for Azure Container Instances (CPU) ──
+FROM python:3.11-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV HF_HOME=/app/cache
+
+# System dependencies (ffmpeg for whisperx, git for pip installs)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg libsndfile1-dev git curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install CPU-only PyTorch (smaller image, faster build)
+RUN pip install --no-cache-dir torch torchaudio torchvision --index-url https://download.pytorch.org/whl/cpu
+
+# Install tribev2 + backend dependencies
+RUN pip install --no-cache-dir \
+    "tribev2[plotting] @ git+https://github.com/facebookresearch/tribev2.git" \
+    "transformers<4.47" \
+    numpy huggingface_hub psutil uv \
+    fastapi "uvicorn[standard]" python-multipart yt-dlp \
+    "whisperx @ git+https://github.com/m-bain/whisperX.git" faster-whisper
+
+# Copy backend code and model config only (no frontend)
+COPY backend.py .
+COPY model_weights/ ./model_weights/
+
+# Pre-create cache directory
+RUN mkdir -p /app/cache
+
+EXPOSE 8000
+
+CMD ["uvicorn", "backend:app", "--host", "0.0.0.0", "--port", "8000"]
